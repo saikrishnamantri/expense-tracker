@@ -1,122 +1,85 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useEffect, useState } from "react";
+import { fetchExpenses, fetchSummary } from "./api";
 
-function App() {
-  const [count, setCount] = useState(0)
+const LOAD_ERROR = "Could not reach the server. Is Spring Boot running on 8080?";
+
+export default function App() {
+  const [expenses, setExpenses] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  // Called on demand (after create or delete). Not inside an effect.
+  async function load() {
+    try {
+      const [list, sum] = await Promise.all([fetchExpenses(), fetchSummary()]);
+      setExpenses(list);
+      setSummary(sum);
+      setLoadError("");
+    } catch {
+      setLoadError(LOAD_ERROR);
+    }
+  }
+
+  // Initial load, with cleanup so a late response can't touch a dead component.
+  useEffect(() => {
+    const controller = new AbortController();
+
+    (async () => {
+      try {
+        const [list, sum] = await Promise.all([
+          fetchExpenses(null, controller.signal),
+          fetchSummary(controller.signal),
+        ]);
+        if (controller.signal.aborted) return;
+        setExpenses(list);
+        setSummary(sum);
+        setLoadError("");
+      } catch (err) {
+        if (err.name !== "AbortError") setLoadError(LOAD_ERROR);
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    })();
+
+    return () => controller.abort();
+  }, []);
+
+  if (loading) return <div className="container">Loading…</div>;
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="container">
+      <h1>Expense Tracker</h1>
+      <p className="subtitle">Track what you spend, see where it goes</p>
 
-      <div className="ticks"></div>
+      {loadError && <div className="banner">{loadError}</div>}
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+      <div className="card">
+        <div className="total-label">Total spent</div>
+        <div className="total-value">
+          ₹{Number(summary?.totalSpent ?? 0).toFixed(2)}
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
+        <div className="expense-meta">
+          {summary?.expenseCount ?? 0} expense{summary?.expenseCount === 1 ? "" : "s"}
         </div>
-      </section>
+      </div>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      <div className="card">
+        {expenses.length === 0 ? (
+          <div className="empty">No expenses yet.</div>
+        ) : (
+          expenses.map((e) => (
+            <div className="expense-row" key={e.id}>
+              <div className="expense-desc">
+                <div>{e.description}</div>
+                <div className="expense-meta">{e.spentOn}</div>
+              </div>
+              <span className="badge">{e.category}</span>
+              <div className="expense-amount">₹{Number(e.amount).toFixed(2)}</div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
 }
-
-export default App

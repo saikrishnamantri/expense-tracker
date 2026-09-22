@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchExpenses, fetchSummary } from "./api";
+import ExpenseForm from "./ExpenseForm"
 
 const LOAD_ERROR = "Could not reach the server. Is Spring Boot running on 8080?";
 
@@ -63,6 +64,8 @@ export default function App() {
           {summary?.expenseCount ?? 0} expense{summary?.expenseCount === 1 ? "" : "s"}
         </div>
       </div>
+
+      <ExpenseForm onCreated={load} />
 
       <div className="card">
         {expenses.length === 0 ? (
